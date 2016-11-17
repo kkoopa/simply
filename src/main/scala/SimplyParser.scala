@@ -7,6 +7,8 @@ import scala.util.parsing.combinator.RegexParsers
 import scala.util.parsing.combinator.PackratParsers
 
 class SimplyParser extends RegexParsers with PackratParsers {
+  override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
+
   def simply_problem: Parser[Any] = "Problem" ~ ":" ~ id ~ data ~ domains ~ variables ~ constraints
 
   def data: Parser[Any] = "Data" ~ rep(data_exp)
@@ -96,7 +98,7 @@ class SimplyParser extends RegexParsers with PackratParsers {
   | formula
   )
 
-   def range: Parser[Any] = arithm_exp~".."~arithm_exp
+  def range: Parser[Any] = arithm_exp ~ ".." ~ arithm_exp
 
   def bool_operator: Parser[Any] = (
     "And"
@@ -107,12 +109,12 @@ class SimplyParser extends RegexParsers with PackratParsers {
   )
 
   def relational_operator: Parser[Any] = (
-    "="
+    "=<"
+  | "="
   | "<>"
   | "<"
-  | ">"
-  | "=<"
   | ">="
+  | ">"
   )
 
   def arithm_operator: Parser[Any] = (
@@ -130,9 +132,13 @@ class SimplyParser extends RegexParsers with PackratParsers {
 
 object SimplyParserTest extends SimplyParser {
   def main(args: Array[String]): Unit = {
-    val reader = new FileReader("resources/SchursLemma_10_3.y")
+    val reader = new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")
     println(parseAll(simply_problem, reader))
-    val reader_2 = new FileReader("resources/queens_8.y")
+    val reader_2 = new FileReader("target/scala-2.12/classes/queens_8.y")
     println(parseAll(simply_problem, reader_2))
+    val reader_3 = new FileReader("target/scala-2.12/classes/bacp_12_6.y")
+    println(parseAll(simply_problem, reader_3))
+    val reader_4 = new FileReader("target/scala-2.12/classes/jobshop_58.y")
+    println(parseAll(simply_problem, reader_4))
   }
 }
