@@ -6,39 +6,47 @@ import java.io.FileReader
 import scala.util.parsing.combinator.RegexParsers
 import scala.util.parsing.combinator.PackratParsers
 
+sealed abstract class AST
+sealed abstract class BooleanExpression extends AST
+case class BooleanOperation(op: String, lhs: BooleanExpression, rhs: BooleanExpression)
+case class Comparison(op:String, rhs:Constant) extends BooleanExpression
+case class Constant(value: Int) extends AST
+case class BoolConst(value: Boolean) extends BooleanExpression
+sealed abstract class ArithmeticExpression extends AST
+
 class SimplyParser extends RegexParsers with PackratParsers {
   override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
-  def simply_problem: Parser[Any] = "Problem" ~ ":" ~ id ~ data ~ domains ~ variables ~ constraints
+  def simply_problem: Parser[Any] = "Problem" ~> ":" ~> id ~ data ~ domains ~ variables ~ constraints
 
-  def data: Parser[Any] = "Data" ~ rep(data_exp)
+  def data: Parser[Any] = "Data" ~> rep(data_exp)
 
   def data_exp: Parser[Any] = (
-    id ~ ":=" ~ arithm_exp ~ ";"
-  | id ~ ":=" ~ formula ~ ";"
+    id <~ ":=" ~> arithm_exp <~ ";"
+  | id <~ ":=" ~> formula <~ ";"
   )
 
-  def domains: Parser[Any] = "Domains" ~ rep(domain_exp)
+  def domains: Parser[Any] = "Domains" ~> rep(domain_exp)
 
-  def domain_exp: Parser[Any] = "Dom" ~ id ~ "=" ~ list ~ ";"
+  def domain_exp: Parser[Any] = "Dom" ~> id <~ "=" ~> list <~ ";"
 
-  def variables: Parser[Any] = "Variables" ~ rep(variable_exp)
+  def variables: Parser[Any] = "Variables" ~> rep(variable_exp)
 
   def variable_exp: Parser[Any] = (
-    "IntVar" ~ rep1sep(var_id, ",") ~ "::" ~ id ~ ";"
-  | "BoolVar" ~ rep1sep(var_id, ",") ~ ";"
+    "IntVar" ~> rep1sep(var_id, ",") <~ "::" ~> id <~ ";"
+  | "BoolVar" ~> rep1sep(var_id, ",") <~ ";"
   )
 
   def var_id: Parser[Any] = (
-    id ~ "[" ~ rep1sep(arithm_exp, ",") ~ "]"
+    id <~ "[" ~> rep1sep(arithm_exp, ",") <~ "]"
   | id
   )
 
-  def constraints: Parser[Any] = "Constraints" ~ rep1(sentence)
+  def constraints: Parser[Any] = "Constraints" ~> rep1(sentence)
 
   def sentence: Parser[Any] = (
     statement
-  | constraint ~ ";"
+  | constraint <~ ";"
   )
 
   def statement: Parser[Any] = (
@@ -47,45 +55,45 @@ class SimplyParser extends RegexParsers with PackratParsers {
   )
 
   def if_then_else: Parser[Any] = (
-    "If" ~ "(" ~ formula ~ ")" ~ "Then" ~ "{" ~ rep1(sentence) ~ "}"
-  | "If" ~ "(" ~ formula ~ ")" ~ "Then" ~ "{" ~ rep1(sentence) ~ "}" ~ "Else" ~ "{" ~ rep1(sentence) ~ "}"
+    "If" ~> "(" ~> formula <~ ")" ~> "Then" ~> "{" ~> rep1(sentence) <~ "}"
+  | "If" ~> "(" ~> formula <~ ")" ~> "Then" ~> "{" ~> rep1(sentence) <~ "}" ~> "Else" ~> "{" ~> rep1(sentence) <~ "}"
   )
 
-  def forall: Parser[Any] = "Forall" ~ "(" ~ id ~ "in" ~ list ~ ")" ~ "{" ~ rep1(sentence) ~ "}"
+  def forall: Parser[Any] = "Forall" ~> "(" ~> id <~ "in" ~> list <~ ")" ~> "{" ~> rep1(sentence) <~ "}"
 
   def constraint: Parser[Any] = (
     global_constraint
-  | "If_Then_Else" ~ "(" ~ formula ~ ")" ~ "{" ~ rep1(sentence) ~ "}" ~ "{" ~ rep1(sentence) ~ "}"
+  | "If_Then_Else" ~> "(" ~> formula <~ ")" ~> "{" ~> rep1(sentence) <~ "}" ~> "{" ~> rep1(sentence) <~ "}"
   | formula
   )
 
   lazy val formula: PackratParser[Any] = (
-    "Not" ~ formula
+    "Not" ~> formula
   | formula ~ bool_operator ~ formula
   | arithm_exp ~ relational_operator ~ arithm_exp
-  | "(" ~ formula ~ ")"
+  | "(" ~> formula <~ ")"
   | var_id
-  | "True"
-  | "False"
+  | "True" ^^^ { true }
+  | "False" ^^^ { false }
   )
 
   def global_constraint: Parser[Any] = (
-    "AllDifferent" ~ "(" ~ list ~ ")"
-  | "Sum" ~ "(" ~ list ~ "," ~ arithm_exp ~ ")"
-  | "Count" ~ "(" ~ list ~ "," ~ arithm_exp ~ "," ~ arithm_exp ~ ")"
+    "AllDifferent" ~> "(" ~> list <~ ")"
+  | "Sum" ~> "(" ~> list <~ "," ~> arithm_exp <~ ")"
+  | "Count" ~> "(" ~> list <~ "," ~> arithm_exp <~ "," ~> arithm_exp <~ ")"
   )
 
   lazy val arithm_exp: PackratParser[Any] = (
     arithm_exp ~ arithm_operator ~ arithm_exp
+  | "Abs" ~> "(" ~> arithm_exp <~ ")"
   | numeral
   | var_id
-  | "(" ~ arithm_exp ~ ")"
-  | "Abs" ~ "(" ~ arithm_exp ~ ")"
+  | "(" ~> arithm_exp <~ ")"
   )
 
   def list: Parser[Any] = (
-    "[" ~ rep1sep(list_element, ",") ~ "]"
-  | "[" ~ arithm_exp ~ "|" ~ rep1sep(var_restrict, ",") ~ "]"
+    "[" ~> rep1sep(list_element, ",") <~ "]"
+  | "[" ~> arithm_exp <~ "|" ~> rep1sep(var_restrict, ",") <~ "]"
   )
 
   def list_element: Parser[Any] = (
@@ -94,36 +102,55 @@ class SimplyParser extends RegexParsers with PackratParsers {
   )
 
   def var_restrict: Parser[Any] = (
-    id ~ "in" ~ list
+    id <~ "in" ~> list
   | formula
   )
 
-  def range: Parser[Any] = arithm_exp ~ ".." ~ arithm_exp
+  def range: Parser[Any] = arithm_exp <~ ".." ~> arithm_exp
 
-  def bool_operator: Parser[Any] = (
+  def bool_operator: Parser[(Boolean, Boolean) => Boolean] = (
     "And"
   | "Or"
   | "Xor"
   | "Iff"
   | "Implies"
-  )
+  ) ^^ {
+    case "And" => (x, y) => x && y
+    case "Or" => (x, y) => x || y
+    case "Xor" => (x, y) => x ^ y
+    case "Iff" => (x, y) => !(x ^ y)
+    case "Implies" => (x, y) => !x || y
+  }
 
-  def relational_operator: Parser[Any] = (
+  def relational_operator: Parser[(Int, Int) => Boolean] = (
     "=<"
   | "="
   | "<>"
   | "<"
   | ">="
   | ">"
-  )
+  ) ^^ {
+    case "=<" => (x, y) => x <= y
+    case "=" => (x, y) => x == y
+    case "<>" => (x, y) => x != y
+    case "<" => (x, y) => x < y
+    case ">=" => (x, y) => x >= y
+    case ">" => (x, y) => x > y
+  }
 
-  def arithm_operator: Parser[Any] = (
+  def arithm_operator: Parser[(Int, Int) => Int] = (
     "+"
   | "-"
   | "*"
   | "Div"
   | "Mod"
-  )
+  ) ^^ {
+    case "+" => (x, y) => x + y
+    case "-" => (x, y) => x - y
+    case "*" => (x, y) => x * y
+    case "Div" => (x, y) => x / y
+    case "Mod" => (x, y) => x % y
+  }
 
   def id: Parser[String] = """[A-Za-z_]\w*""".r ^^ { _.toString }
 
