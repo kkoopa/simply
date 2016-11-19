@@ -4,11 +4,10 @@
 import java.io.FileReader
 
 import scala.util.parsing.combinator.RegexParsers
-import scala.util.parsing.combinator.PackratParsers
 
 import Printer.AnyTreeString
 
-class SimplyParser extends RegexParsers with PackratParsers {
+class SimplyParser extends RegexParsers {
   override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
   def simply_problem: Parser[PROBLEM] = "Problem" ~> ":" ~> id ~ data ~ domains ~ variables ~ constraints ^^ { case ident ~ da ~ dom ~ va ~ cons => PROBLEM(ident, da, dom, va, cons) }
@@ -61,13 +60,18 @@ class SimplyParser extends RegexParsers with PackratParsers {
   | formula ^^ { PREDICATE_CONSTRAINT }
   )
 
-  lazy val formula: PackratParser[FORMULA] = (
-    "Not" ~> formula ^^ { NOT_FORMULA }
-  | formula ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, lhs, rhs) }
+  def formula: Parser[FORMULA] = (
+    "Not" ~> formula ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, NOT_FORMULA(lhs), rhs) }
+  | "Not" ~> formula ^^ { NOT_FORMULA }
+  | arithm_exp ~ relational_operator ~ arithm_exp ~ bool_operator ~ formula ^^ { case lhs1 ~ op1 ~ rhs1 ~ op ~ rhs  => BOOL_OP_FORMULA(op, REL_OP_FORMULA(op1, lhs1, rhs1), rhs) }
   | arithm_exp ~ relational_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs  => REL_OP_FORMULA(op, lhs, rhs) }
+  | "(" ~> formula ~ (")" ~> bool_operator) ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, lhs, rhs) }
   | "(" ~> formula <~ ")"
+  | var_id ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, VAR_FORMULA(lhs), rhs) }
   | var_id ^^ { VAR_FORMULA }
+  | "True" ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, CONST_FORMULA(true), rhs) }
   | "True" ^^^ { CONST_FORMULA(true) }
+  | "False" ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, CONST_FORMULA(false), rhs) }
   | "False" ^^^ { CONST_FORMULA(false) }
   )
 
@@ -77,11 +81,14 @@ class SimplyParser extends RegexParsers with PackratParsers {
   | "Count" ~> "(" ~> list ~ ("," ~> arithm_exp) ~ ("," ~> arithm_exp) <~ ")" ^^ { case l ~ value ~ count => COUNT_CONSTRAINT(l, value, count) }
   )
 
-  lazy val arithm_exp: PackratParser[ARITHM_EXP] = (
-    arithm_exp ~ arithm_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, lhs, rhs) }
+  def arithm_exp: Parser[ARITHM_EXP] = (
+      "Abs" ~> "(" ~> arithm_exp ~ (")" ~> arithm_operator) ~ arithm_exp  ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, ABS_EXP(lhs), rhs) }
     | "Abs" ~> "(" ~> arithm_exp <~ ")" ^^ { ABS_EXP }
+    | numeral ~ arithm_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, CONST_EXP(lhs), rhs) }
     | numeral ^^ { CONST_EXP }
+    | var_id ~ arithm_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, VAR_EXP(lhs), rhs) }
     | var_id ^^ { VAR_EXP }
+    | "(" ~> arithm_exp ~ (")" ~> arithm_operator) ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, lhs, rhs) }
     | "(" ~> arithm_exp <~ ")"
   )
 
