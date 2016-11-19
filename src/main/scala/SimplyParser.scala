@@ -6,6 +6,8 @@ import java.io.FileReader
 import scala.util.parsing.combinator.RegexParsers
 import scala.util.parsing.combinator.PackratParsers
 
+import Printer.AnyTreeString
+
 class SimplyParser extends RegexParsers with PackratParsers {
   override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
@@ -133,12 +135,12 @@ class SimplyParser extends RegexParsers with PackratParsers {
 object SimplyParserTest extends SimplyParser {
   def main(args: Array[String]): Unit = {
     val reader = new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")
-    println(parseAll(simply_problem, reader))
+    println(parseAll(simply_problem, reader).get.treeString)
     val reader_2 = new FileReader("target/scala-2.12/classes/queens_8.y")
-    println(parseAll(simply_problem, reader_2))
+    println(parseAll(simply_problem, reader_2).get.treeString)
     val reader_3 = new FileReader("target/scala-2.12/classes/bacp_12_6.y")
-    println(parseAll(simply_problem, reader_3))
+    println(parseAll(simply_problem, reader_3).get.treeString)
     val reader_4 = new FileReader("target/scala-2.12/classes/jobshop_58.y")
-    println(parseAll(simply_problem, reader_4))
+    println(parseAll(simply_problem, reader_4).get.treeString)
   }
 }
