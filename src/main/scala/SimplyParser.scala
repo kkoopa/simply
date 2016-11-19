@@ -140,14 +140,12 @@ class SimplyParser extends RegexParsers {
 }
 
 object SimplyParserTest extends SimplyParser {
+  def printAST(path: String): Unit = println(parseAll(simply_problem, new FileReader(path)).get.treeString)
+
   def main(args: Array[String]): Unit = {
-    val reader = new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")
-    println(parseAll(simply_problem, reader).get.treeString)
-    val reader_2 = new FileReader("target/scala-2.12/classes/queens_8.y")
-    println(parseAll(simply_problem, reader_2).get.treeString)
-    val reader_3 = new FileReader("target/scala-2.12/classes/bacp_12_6.y")
-    println(parseAll(simply_problem, reader_3).get.treeString)
-    val reader_4 = new FileReader("target/scala-2.12/classes/jobshop_58.y")
-    println(parseAll(simply_problem, reader_4).get.treeString)
+    printAST("target/scala-2.12/classes/SchursLemma_10_3.y")
+    printAST("target/scala-2.12/classes/queens_8.y")
+    printAST("target/scala-2.12/classes/bacp_12_6.y")
+    printAST("target/scala-2.12/classes/jobshop_58.y")
   }
 }
