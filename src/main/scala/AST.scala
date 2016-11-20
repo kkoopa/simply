@@ -9,8 +9,12 @@ case class IDENTIFIER(name: String) extends AST
 case class NUMERAL(value: Int) extends AST
 
 sealed trait EXPRESSION extends AST
-sealed trait FORMULA extends EXPRESSION
-sealed trait ARITHM_EXP extends EXPRESSION
+sealed trait FORMULA extends EXPRESSION {
+  def evaluate: Boolean
+}
+sealed trait ARITHM_EXP extends EXPRESSION {
+  def evaluate: Int
+}
 
 case class PROBLEM(ident: IDENTIFIER, data: List[DATA_EXP], domains: List[DOMAIN_EXP], variables: List[VARIABLE_EXP], constraints: List[SENTENCE]) extends AST
 
@@ -54,13 +58,60 @@ case class PREDICATE_RESTRICT(predicate: FORMULA) extends VAR_RESTRICT
 
 case class RANGE(lb: ARITHM_EXP, ub: ARITHM_EXP) extends AST
 
-case class CONST_FORMULA(value: Boolean) extends FORMULA
-case class NOT_FORMULA(formula : FORMULA) extends FORMULA
-case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMULA
-case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends FORMULA
-case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA
+case class CONST_FORMULA(value: Boolean) extends FORMULA {
+  override def evaluate = value
+}
+case class NOT_FORMULA(formula : FORMULA) extends FORMULA {
+  override def evaluate = !formula.evaluate
+}
+case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMULA {
+  override def evaluate = op match {
+    case "And" => lhs.evaluate && rhs.evaluate
+    case "Or" => lhs.evaluate || rhs.evaluate
+    case "Xor" => lhs.evaluate ^ rhs.evaluate
+    case "Iff" => !(lhs.evaluate ^ rhs.evaluate)
+    case "Implies" => !lhs.evaluate || rhs.evaluate
+  }
+}
+case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends FORMULA {
+  override def evaluate = op match {
+    case "=" => lhs.evaluate == rhs.evaluate
+    case "<>" => lhs.evaluate != rhs.evaluate
+    case "<" => lhs.evaluate < rhs.evaluate
+    case ">" => lhs.evaluate > rhs.evaluate
+    case "=<" => lhs.evaluate <= rhs.evaluate
+    case ">=" => lhs.evaluate >= rhs.evaluate
+  }
+}
 
-case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends ARITHM_EXP
-case class ABS_EXP(exp: ARITHM_EXP) extends ARITHM_EXP
-case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP
-case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP
+object Env {
+  val env = collection.mutable.Map[String, collection.mutable.Map[Int, Int]]()
+}
+case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA {
+  override def evaluate = var_id match {
+    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)(0) != 0
+    case VAR_ID(IDENTIFIER(s), offsets) => offsets.map(x => x.evaluate).map(Env.env(s)(_) != 0).reduce(_ && _)
+  }
+}
+
+case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends ARITHM_EXP {
+  override def evaluate = op match {
+    case "+" => lhs.evaluate + rhs.evaluate
+    case "-" => lhs.evaluate - rhs.evaluate
+    case "*" => lhs.evaluate * rhs.evaluate
+    case "Div" => lhs.evaluate / rhs.evaluate
+    case "Mod" => lhs.evaluate % rhs.evaluate
+  }
+}
+case class ABS_EXP(exp: ARITHM_EXP) extends ARITHM_EXP {
+  override def evaluate = math.abs(exp.evaluate)
+}
+case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP {
+  override def evaluate = value match { case NUMERAL(n) => n }
+}
+case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP {
+  override def evaluate = var_id match {
+    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)(0)
+    case VAR_ID(IDENTIFIER(s), offsets) => offsets.map(x => x.evaluate).map(Env.env(s)(_)).sum
+  }
+}
