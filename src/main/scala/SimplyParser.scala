@@ -82,9 +82,9 @@ class SimplyParser extends RegexParsers {
     "(" ~> formula <~ ")"
     | "Not" ~> formula ^^ { NOT_FORMULA }
     | relation
-    | var_id ^^ { VAR_FORMULA }
     | "True" ^^^ { CONST_FORMULA(true) }
     | "False" ^^^ { CONST_FORMULA(false) }
+    | var_id ^^ { VAR_FORMULA }
     )
 
   def global_constraint: Parser[GLOBAL_CONSTRAINT] = (
@@ -99,9 +99,9 @@ class SimplyParser extends RegexParsers {
 
   def factor: Parser[ARITHM_EXP] = (
     numeral ^^ { CONST_EXP }
+  | "Abs" ~> arithm_exp ^^ { ABS_EXP }
   | var_id ^^ { VAR_EXP }
   | "(" ~> arithm_exp <~ ")"
-  | "Abs" ~> arithm_exp ^^ { ABS_EXP }
   )
 
   def list: Parser[LIST] = (
@@ -170,7 +170,7 @@ object SimplyParserTest extends SimplyParser {
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
     def visit(node: AST): List[AST] = node match {
       case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit)
-      case DATA_EXP(ident, exp:FORMULA) => List(ident, CONST_FORMULA(exp.evaluate))
+      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; env(name) = Map(0 -> (if (res) 1 else 0) ); List(IDENTIFIER(name), CONST_FORMULA(res))
       case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; env(name) = Map(0 -> res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
 
       case _ => List(IDENTIFIER("Noting"))
