@@ -7,6 +7,8 @@ import scala.util.parsing.combinator.RegexParsers
 
 import Printer.AnyTreeString
 
+import scala.collection.mutable
+
 class SimplyParser extends RegexParsers {
   override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
@@ -81,15 +83,15 @@ class SimplyParser extends RegexParsers {
   | "Count" ~> "(" ~> list ~ ("," ~> arithm_exp) ~ ("," ~> arithm_exp) <~ ")" ^^ { case l ~ value ~ count => COUNT_CONSTRAINT(l, value, count) }
   )
 
-  def arithm_exp: Parser[ARITHM_EXP] = (
-      "Abs" ~> "(" ~> arithm_exp ~ (")" ~> arithm_operator) ~ arithm_exp  ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, ABS_EXP(lhs), rhs) }
-    | "Abs" ~> "(" ~> arithm_exp <~ ")" ^^ { ABS_EXP }
-    | numeral ~ arithm_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, CONST_EXP(lhs), rhs) }
-    | numeral ^^ { CONST_EXP }
-    | var_id ~ arithm_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, VAR_EXP(lhs), rhs) }
-    | var_id ^^ { VAR_EXP }
-    | "(" ~> arithm_exp ~ (")" ~> arithm_operator) ~ arithm_exp ^^ { case lhs ~ op ~ rhs => ARITHM_OP_EXP(op, lhs, rhs) }
-    | "(" ~> arithm_exp <~ ")"
+  def arithm_exp: Parser[ARITHM_EXP] = term ~ (arithm_operator1 ~ term).* ^^ { case head ~ tail => (head /: tail) ((l, r) => ARITHM_OP_EXP(r._1, l, r._2)) }
+
+  def term: Parser[ARITHM_EXP] = factor ~ (arithm_operator2 ~ factor).* ^^ { case head ~ tail => (head /: tail) ((l, r) => ARITHM_OP_EXP(r._1, l, r._2)) }
+
+  def factor: Parser[ARITHM_EXP] = (
+    numeral ^^ { CONST_EXP }
+  | var_id ^^ { VAR_EXP }
+  | "(" ~> arithm_exp <~ ")"
+  | "Abs" ~> arithm_exp ^^ { ABS_EXP }
   )
 
   def list: Parser[LIST] = (
@@ -126,10 +128,13 @@ class SimplyParser extends RegexParsers {
   | ">"
   )
 
-  def arithm_operator: Parser[String] = (
+  def arithm_operator1: Parser[String] = (
     "+"
   | "-"
-  | "*"
+  )
+
+  def arithm_operator2: Parser[String] = (
+    "*"
   | "Div"
   | "Mod"
   )
@@ -142,10 +147,22 @@ class SimplyParser extends RegexParsers {
 object SimplyParserTest extends SimplyParser {
   def printAST(path: String): Unit = println(parseAll(simply_problem, new FileReader(path)).get.treeString)
 
+  val env = mutable.Map[String, Map[Int, Int]]()
+
   def main(args: Array[String]): Unit = {
     printAST("target/scala-2.12/classes/SchursLemma_10_3.y")
     printAST("target/scala-2.12/classes/queens_8.y")
     printAST("target/scala-2.12/classes/bacp_12_6.y")
     printAST("target/scala-2.12/classes/jobshop_58.y")
+    val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
+    def visit(node: AST): List[AST] = node match {
+      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit)
+      case DATA_EXP(ident, exp:FORMULA) => List(ident, CONST_FORMULA(exp.evaluate))
+      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; env(name) = Map(0 -> res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
+
+      case _ => List(IDENTIFIER("Noting"))
+    }
+    println(visit(tree))
+    println(env)
   }
 }
