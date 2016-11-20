@@ -62,20 +62,30 @@ class SimplyParser extends RegexParsers {
   | formula ^^ { PREDICATE_CONSTRAINT }
   )
 
-  def formula: Parser[FORMULA] = (
-    "Not" ~> formula ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, NOT_FORMULA(lhs), rhs) }
-  | "Not" ~> formula ^^ { NOT_FORMULA }
-  | arithm_exp ~ relational_operator ~ arithm_exp ~ bool_operator ~ formula ^^ { case lhs1 ~ op1 ~ rhs1 ~ op ~ rhs  => BOOL_OP_FORMULA(op, REL_OP_FORMULA(op1, lhs1, rhs1), rhs) }
-  | arithm_exp ~ relational_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs  => REL_OP_FORMULA(op, lhs, rhs) }
-  | "(" ~> formula ~ (")" ~> bool_operator) ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, lhs, rhs) }
-  | "(" ~> formula <~ ")"
-  | var_id ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, VAR_FORMULA(lhs), rhs) }
-  | var_id ^^ { VAR_FORMULA }
-  | "True" ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, CONST_FORMULA(true), rhs) }
-  | "True" ^^^ { CONST_FORMULA(true) }
-  | "False" ~ bool_operator ~ formula ^^ { case lhs ~ op ~ rhs => BOOL_OP_FORMULA(op, CONST_FORMULA(false), rhs) }
-  | "False" ^^^ { CONST_FORMULA(false) }
+  def formula: Parser[FORMULA] = equivalence
+
+  def relation: Parser[FORMULA] = (
+    equality
+  | inequality
   )
+
+  def equality: Parser[FORMULA] = arithm_exp ~ relational_equality_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => REL_OP_FORMULA(op, lhs, rhs) }
+  def inequality: Parser[FORMULA] = arithm_exp ~ relational_inequality_operator ~ arithm_exp ^^ { case lhs ~ op ~ rhs => REL_OP_FORMULA(op, lhs, rhs) }
+
+  def equivalence: Parser[FORMULA] = implication ~ ("Iff" ~> implication).* ^^ { case head ~ tail => (head /: tail)((lhs, rhs) => BOOL_OP_FORMULA("Iff", lhs, rhs))}
+  def implication: Parser[FORMULA] = disjunction ~ ("Implies" ~> disjunction).* ^^ { case head ~ tail => (head /: tail)((lhs, rhs) => BOOL_OP_FORMULA("Implies", lhs, rhs)) }
+  def disjunction: Parser[FORMULA] = exdisjunction ~ ("Or" ~> exdisjunction).* ^^ { case head ~ tail => (head /: tail)((lhs, rhs) => BOOL_OP_FORMULA("Or", lhs, rhs)) }
+  def exdisjunction: Parser[FORMULA] = conjunction ~ ("Xor" ~> conjunction).* ^^ { case head ~ tail => (head /: tail)((lhs, rhs) => BOOL_OP_FORMULA("Xor", lhs, rhs)) }
+  def conjunction: Parser[FORMULA] = logical_primitive ~ ("And" ~> logical_primitive).* ^^ { case head ~ tail => (head /: tail)((lhs, rhs) => BOOL_OP_FORMULA("And", lhs, rhs)) }
+
+  def logical_primitive: Parser[FORMULA] = (
+    "(" ~> formula <~ ")"
+    | "Not" ~> formula ^^ { NOT_FORMULA }
+    | relation
+    | var_id ^^ { VAR_FORMULA }
+    | "True" ^^^ { CONST_FORMULA(true) }
+    | "False" ^^^ { CONST_FORMULA(false) }
+    )
 
   def global_constraint: Parser[GLOBAL_CONSTRAINT] = (
     "AllDifferent" ~> "(" ~> list <~ ")" ^^ { ALLDIFFERENT_CONSTRAINT }
@@ -119,10 +129,13 @@ class SimplyParser extends RegexParsers {
   | "Implies"
   )
 
-  def relational_operator: Parser[String] = (
-    "=<"
-  | "="
+  def relational_equality_operator: Parser[String] = (
+    "="
   | "<>"
+  )
+
+  def relational_inequality_operator: Parser[String] = (
+    "=<"
   | "<"
   | ">="
   | ">"
