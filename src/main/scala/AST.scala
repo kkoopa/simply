@@ -84,9 +84,6 @@ case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends 
   }
 }
 
-object Env {
-  val env = collection.mutable.Map[String, collection.mutable.Map[Int, Int]]()
-}
 case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA {
   override def evaluate = var_id match {
     case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)(0) != 0

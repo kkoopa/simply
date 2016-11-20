@@ -157,10 +157,12 @@ class SimplyParser extends RegexParsers {
   def numeral: Parser[NUMERAL] = """\d+""".r ^^ { string => NUMERAL(string.toInt) }
 }
 
+object Env {
+  val env = mutable.Map[String, Map[Int, Int]]()
+}
+
 object SimplyParserTest extends SimplyParser {
   def printAST(path: String): Unit = println(parseAll(simply_problem, new FileReader(path)).get.treeString)
-
-  val env = mutable.Map[String, Map[Int, Int]]()
 
   def main(args: Array[String]): Unit = {
     printAST("target/scala-2.12/classes/SchursLemma_10_3.y")
@@ -169,13 +171,17 @@ object SimplyParserTest extends SimplyParser {
     printAST("target/scala-2.12/classes/jobshop_58.y")
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
     def visit(node: AST): List[AST] = node match {
-      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit)
-      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; env(name) = Map(0 -> (if (res) 1 else 0) ); List(IDENTIFIER(name), CONST_FORMULA(res))
-      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; env(name) = Map(0 -> res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
+      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit) ++ domains.flatMap(visit)
+      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = Map(0 -> (if (res) 1 else 0) ); List(IDENTIFIER(name), CONST_FORMULA(res))
+      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = Map(0 -> res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
+      case DOMAIN_EXP(IDENTIFIER(name), LIST_ENUMERATION(list)) => list.map {
+        case LIST_ELEMENT_EXP(ex) => LIST_ELEMENT_EXP(CONST_EXP(NUMERAL(ex.evaluate)))
+        case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => LIST_ELEMENT_RANGE(RANGE(CONST_EXP(NUMERAL(lb.evaluate)), CONST_EXP(NUMERAL(ub.evaluate))))
+      }
 
-      case _ => List(IDENTIFIER("Noting"))
+      case _ => List(IDENTIFIER("Nothing"))
     }
     println(visit(tree))
-    println(env)
+    println(Env.env)
   }
 }
