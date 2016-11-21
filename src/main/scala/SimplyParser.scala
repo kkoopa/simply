@@ -158,8 +158,9 @@ class SimplyParser extends RegexParsers {
 }
 
 object Env {
-  val env = mutable.Map[String, Array[Int]]()
+  val env = mutable.Map[String, Int]()
   val dom = mutable.Map[String, List[Int]]()
+  val xev = mutable.Map[String, (List[Int], List[Int])]()
 }
 
 object SimplyParserTest extends SimplyParser {
@@ -172,9 +173,9 @@ object SimplyParserTest extends SimplyParser {
     printAST("target/scala-2.12/classes/jobshop_58.y")
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
     def visit(node: AST): List[AST] = node match {
-      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit) ++ domains.flatMap(visit)
-      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = Array(if (res) 1 else 0); List(IDENTIFIER(name), CONST_FORMULA(res))
-      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = Array(res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
+      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit) ++ domains.flatMap(visit) ++ variables.flatMap(visit)
+      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = if (res) 1 else 0; List(IDENTIFIER(name), CONST_FORMULA(res))
+      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = res; List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
       case DOMAIN_EXP(IDENTIFIER(name), LIST_ENUMERATION(list)) => Env.dom(name) = list.flatMap {
           case LIST_ELEMENT_EXP(ex) => List(ex.evaluate)
           case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => List.range(lb.evaluate, ub.evaluate + 1)
@@ -184,10 +185,15 @@ object SimplyParserTest extends SimplyParser {
           case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => LIST_ELEMENT_RANGE(RANGE(CONST_EXP(NUMERAL(lb.evaluate)), CONST_EXP(NUMERAL(ub.evaluate))))
         }
 
+      case VARIABLE_EXP(idents, IDENTIFIER(domain)) => idents.foreach {
+        case VAR_ID(IDENTIFIER(name), Nil) => Env.xev(name) = (Nil, Env.dom(domain))
+        case VAR_ID(IDENTIFIER(name), explist) => Env.xev(name) = (explist.map(_.evaluate), Env.dom(domain))
+      }; List(VARIABLE_EXP(idents, IDENTIFIER(domain)))
       case _ => List(IDENTIFIER("Nothing"))
     }
     println(visit(tree))
-    Env.env.foreach {case (key, value) => println(key + " = " + value.mkString(" "))}
+    println(Env.env)
     println(Env.dom)
+    println(Env.xev)
   }
 }

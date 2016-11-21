@@ -86,8 +86,7 @@ case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends 
 
 case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA {
   override def evaluate = var_id match {
-    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)(0) != 0
-    case VAR_ID(IDENTIFIER(s), offsets) => offsets.map(x => x.evaluate).map(Env.env(s)(_) != 0).reduce(_ && _)
+    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s) != 0
   }
 }
 
@@ -108,7 +107,6 @@ case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP {
 }
 case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP {
   override def evaluate = var_id match {
-    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)(0)
-    case VAR_ID(IDENTIFIER(s), offsets) => offsets.map(x => x.evaluate).map(Env.env(s)(_)).sum
+    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)
   }
 }
