@@ -158,7 +158,8 @@ class SimplyParser extends RegexParsers {
 }
 
 object Env {
-  val env = mutable.Map[String, Map[Int, Int]]()
+  val env = mutable.Map[String, Array[Int]]()
+  val dom = mutable.Map[String, List[Int]]()
 }
 
 object SimplyParserTest extends SimplyParser {
@@ -172,16 +173,21 @@ object SimplyParserTest extends SimplyParser {
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
     def visit(node: AST): List[AST] = node match {
       case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit) ++ domains.flatMap(visit)
-      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = Map(0 -> (if (res) 1 else 0) ); List(IDENTIFIER(name), CONST_FORMULA(res))
-      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = Map(0 -> res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
-      case DOMAIN_EXP(IDENTIFIER(name), LIST_ENUMERATION(list)) => list.map {
-        case LIST_ELEMENT_EXP(ex) => LIST_ELEMENT_EXP(CONST_EXP(NUMERAL(ex.evaluate)))
-        case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => LIST_ELEMENT_RANGE(RANGE(CONST_EXP(NUMERAL(lb.evaluate)), CONST_EXP(NUMERAL(ub.evaluate))))
-      }
+      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = Array(if (res) 1 else 0); List(IDENTIFIER(name), CONST_FORMULA(res))
+      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = Array(res); List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
+      case DOMAIN_EXP(IDENTIFIER(name), LIST_ENUMERATION(list)) => Env.dom(name) = list.flatMap {
+          case LIST_ELEMENT_EXP(ex) => List(ex.evaluate)
+          case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => List.range(lb.evaluate, ub.evaluate + 1)
+        }
+        list.map {
+          case LIST_ELEMENT_EXP(ex) => LIST_ELEMENT_EXP(CONST_EXP(NUMERAL(ex.evaluate)))
+          case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => LIST_ELEMENT_RANGE(RANGE(CONST_EXP(NUMERAL(lb.evaluate)), CONST_EXP(NUMERAL(ub.evaluate))))
+        }
 
       case _ => List(IDENTIFIER("Nothing"))
     }
     println(visit(tree))
-    println(Env.env)
+    Env.env.foreach {case (key, value) => println(key + " = " + value.mkString(" "))}
+    println(Env.dom)
   }
 }
