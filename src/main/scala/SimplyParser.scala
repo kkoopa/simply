@@ -80,12 +80,12 @@ class SimplyParser extends RegexParsers {
 
   def logical_primitive: Parser[FORMULA] = (
     "(" ~> formula <~ ")"
-    | "Not" ~> formula ^^ { NOT_FORMULA }
-    | relation
-    | "True" ^^^ { CONST_FORMULA(true) }
-    | "False" ^^^ { CONST_FORMULA(false) }
-    | var_id ^^ { VAR_FORMULA }
-    )
+  | "Not" ~> formula ^^ { NOT_FORMULA }
+  | relation
+  | "True" ^^^ { CONST_FORMULA(true) }
+  | "False" ^^^ { CONST_FORMULA(false) }
+  | var_id ^^ { VAR_FORMULA }
+  )
 
   def global_constraint: Parser[GLOBAL_CONSTRAINT] = (
     "AllDifferent" ~> "(" ~> list <~ ")" ^^ { ALLDIFFERENT_CONSTRAINT }
@@ -93,9 +93,9 @@ class SimplyParser extends RegexParsers {
   | "Count" ~> "(" ~> list ~ ("," ~> arithm_exp) ~ ("," ~> arithm_exp) <~ ")" ^^ { case l ~ value ~ count => COUNT_CONSTRAINT(l, value, count) }
   )
 
-  def arithm_exp: Parser[ARITHM_EXP] = term ~ (arithm_operator1 ~ term).* ^^ { case head ~ tail => (head /: tail) ((l, r) => ARITHM_OP_EXP(r._1, l, r._2)) }
+  def arithm_exp: Parser[ARITHM_EXP] = term ~ (arithm_operator1 ~ term).* ^^ { case head ~ tail => (head /: tail) { case (lhs, op ~ rhs) => ARITHM_OP_EXP(op, lhs, rhs) } }
 
-  def term: Parser[ARITHM_EXP] = factor ~ (arithm_operator2 ~ factor).* ^^ { case head ~ tail => (head /: tail) ((l, r) => ARITHM_OP_EXP(r._1, l, r._2)) }
+  def term: Parser[ARITHM_EXP] = factor ~ (arithm_operator2 ~ factor).* ^^ { case head ~ tail => (head /: tail) { case (lhs, op ~ rhs) => ARITHM_OP_EXP(op, lhs, rhs) } }
 
   def factor: Parser[ARITHM_EXP] = (
     numeral ^^ { CONST_EXP }
