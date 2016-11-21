@@ -161,6 +161,7 @@ object Env {
   val env = mutable.Map[String, Int]()
   val dom = mutable.Map[String, List[Int]]()
   val xev = mutable.Map[String, (List[Int], List[Int])]()
+  val local = mutable.Map[String, Int]()
 }
 
 object SimplyParserTest extends SimplyParser {
@@ -172,28 +173,48 @@ object SimplyParserTest extends SimplyParser {
     printAST("target/scala-2.12/classes/bacp_12_6.y")
     printAST("target/scala-2.12/classes/jobshop_58.y")
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
-    def visit(node: AST): List[AST] = node match {
-      case PROBLEM(ident, data, domains, variables, constraints) => data.flatMap(visit) ++ domains.flatMap(visit) ++ variables.flatMap(visit)
-      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = if (res) 1 else 0; List(IDENTIFIER(name), CONST_FORMULA(res))
-      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = res; List(IDENTIFIER(name), CONST_EXP(NUMERAL(res)))
-      case DOMAIN_EXP(IDENTIFIER(name), LIST_ENUMERATION(list)) => Env.dom(name) = list.flatMap {
-          case LIST_ELEMENT_EXP(ex) => List(ex.evaluate)
-          case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => List.range(lb.evaluate, ub.evaluate + 1)
-        }
-        list.map {
-          case LIST_ELEMENT_EXP(ex) => LIST_ELEMENT_EXP(CONST_EXP(NUMERAL(ex.evaluate)))
-          case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => LIST_ELEMENT_RANGE(RANGE(CONST_EXP(NUMERAL(lb.evaluate)), CONST_EXP(NUMERAL(ub.evaluate))))
-        }
-
+    def visit(node:AST) : Any = node match {
+      case PROBLEM(IDENTIFIER(name), data, domains, variables, constraints) => data.map(visit); domains.map(visit); variables.map(visit); constraints.map(visit)
+      case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = res
+      case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = if (res) 1 else 0
+      case DOMAIN_EXP(IDENTIFIER(name), list) => Env.dom(name) = visit(list).asInstanceOf[List[Int]]
+      case LIST_COMPREHENSION(exp, restrictions) => restrictions.map(visit).flatMap {
+        case (name:String, values:List[Int]) => values.map { x => Env.local(name) = x; exp.evaluate }
+        case (predicate:FORMULA) => List(1)
+      }
+      case LIST_ENUMERATION(list) => list.flatMap(visitList)
+      case MEMBER_RESTRICT(IDENTIFIER(name), list) => (name, visit(list).asInstanceOf[List[Int]])
+      case PREDICATE_RESTRICT(predicate) => predicate
+      case LIST_ELEMENT_EXP(ex) => List(ex.evaluate)
+      case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).toList
       case VARIABLE_EXP(idents, IDENTIFIER(domain)) => idents.foreach {
         case VAR_ID(IDENTIFIER(name), Nil) => Env.xev(name) = (Nil, if (domain == "__BOOL__") List(0, 1) else Env.dom(domain))
         case VAR_ID(IDENTIFIER(name), explist) => Env.xev(name) = (explist.map(_.evaluate), if (domain == "__BOOL__") List(0, 1) else Env.dom(domain))
-      }; List(VARIABLE_EXP(idents, IDENTIFIER(domain)))
-      case _ => List(IDENTIFIER("Nothing"))
+      }
+      case VAR_ID(IDENTIFIER(name), Nil) => Env.env(name)
+      case VAR_ID(IDENTIFIER(name), list) =>
+      case SENTENCE_STATEMENT(statement) => visit(statement)
+      case SENTENCE_CONSTRAINT(constraint) => visit(constraint)
+      case IF_THEN_ELSE_STATEMENT(statement) => visit(statement)
+      case FORALL_STATEMENT(statement) => visit(statement)
+      case IF_THEN_ELSE(predicate, ifs, elses) => if (predicate.evaluate) ifs.map(visit) else elses.map(visit)
+      case FORALL(IDENTIFIER(name), list, sentences) => visit(list) /* and visit sentences */
+      case PREDICATE_CONSTRAINT(predicate) =>
+      case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) =>
+      case ALLDIFFERENT_CONSTRAINT(list) => visit(list)
+      case SUM_CONSTRAINT(list, value) => visit(list)
+      case COUNT_CONSTRAINT(list, value, count) => visit(list)
     }
+
+    def visitList(node:LIST_ELEMENT) : List[Int] = node match {
+      case LIST_ELEMENT_EXP(exp) => List(exp.evaluate)
+      case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).toList
+    }
+
     println(visit(tree))
     println(Env.env)
     println(Env.dom)
     println(Env.xev)
+    println(Env.local)
   }
 }

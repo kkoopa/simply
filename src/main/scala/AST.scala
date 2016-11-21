@@ -107,6 +107,6 @@ case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP {
 }
 case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP {
   override def evaluate = var_id match {
-    case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s)
+    case VAR_ID(IDENTIFIER(s), Nil) => Env.local.getOrElse(s, Env.env(s))
   }
 }
