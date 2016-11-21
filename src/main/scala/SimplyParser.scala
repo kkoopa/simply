@@ -186,8 +186,8 @@ object SimplyParserTest extends SimplyParser {
         }
 
       case VARIABLE_EXP(idents, IDENTIFIER(domain)) => idents.foreach {
-        case VAR_ID(IDENTIFIER(name), Nil) => Env.xev(name) = (Nil, Env.dom(domain))
-        case VAR_ID(IDENTIFIER(name), explist) => Env.xev(name) = (explist.map(_.evaluate), Env.dom(domain))
+        case VAR_ID(IDENTIFIER(name), Nil) => Env.xev(name) = (Nil, if (domain == "__BOOL__") List(0, 1) else Env.dom(domain))
+        case VAR_ID(IDENTIFIER(name), explist) => Env.xev(name) = (explist.map(_.evaluate), if (domain == "__BOOL__") List(0, 1) else Env.dom(domain))
       }; List(VARIABLE_EXP(idents, IDENTIFIER(domain)))
       case _ => List(IDENTIFIER("Nothing"))
     }
