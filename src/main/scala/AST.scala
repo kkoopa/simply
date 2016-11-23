@@ -97,6 +97,9 @@ case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMU
       case (_, CONST_FORMULA(true)) => CONST_FORMULA(true)
       case (a, b) => BOOL_OP_FORMULA("Or", a, b)
     }
+    case "Xor" => BOOL_OP_FORMULA("Or", BOOL_OP_FORMULA("And", lhs, NOT_FORMULA(rhs)), BOOL_OP_FORMULA("And", NOT_FORMULA(lhs), rhs)).simplify
+    case "Iff" => NOT_FORMULA(BOOL_OP_FORMULA("Xor", lhs, rhs)).simplify
+    case "Implies" => BOOL_OP_FORMULA("Or", NOT_FORMULA(lhs), rhs).simplify
   }
 }
 case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends FORMULA {
@@ -112,13 +115,31 @@ case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends 
     val newlhs = lhs.simplify
     val newrhs = rhs.simplify
     op match {
-      case "=" => if (newlhs == newrhs) CONST_FORMULA(true) else (newlhs, newrhs) match {
+      case "=" => if (newlhs == newrhs) CONST_FORMULA(true)
+      else (newlhs, newrhs) match {
         case (CONST_EXP(_), CONST_EXP(_)) => CONST_FORMULA(false)
         case _ => REL_OP_FORMULA("=", newlhs, newrhs)
       }
-      case "<>" => if (newlhs == newrhs) CONST_FORMULA(false) else (newlhs, newrhs) match {
+      case "<>" => if (newlhs == newrhs) CONST_FORMULA(false)
+      else (newlhs, newrhs) match {
         case (CONST_EXP(_), CONST_EXP(_)) => CONST_FORMULA(true)
         case _ => REL_OP_FORMULA("<>", newlhs, newrhs)
+      }
+      case "<" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(n)), CONST_EXP(NUMERAL(m))) => CONST_FORMULA(n < m)
+        case _ => REL_OP_FORMULA("<", newlhs, newrhs)
+      }
+      case ">" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(n)), CONST_EXP(NUMERAL(m))) => CONST_FORMULA(n > m)
+        case _ => REL_OP_FORMULA(">", newlhs, newrhs)
+      }
+      case "=<" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(n)), CONST_EXP(NUMERAL(m))) => CONST_FORMULA(n <= m)
+        case _ => REL_OP_FORMULA("=<", newlhs, newrhs)
+      }
+      case ">=" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(n)), CONST_EXP(NUMERAL(m))) => CONST_FORMULA(n >= m)
+        case _ => REL_OP_FORMULA(">=", newlhs, newrhs)
       }
     }
   }
@@ -152,22 +173,52 @@ case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends A
     op match {
       case "+" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a + b))
+        case (CONST_EXP(NUMERAL(0)), r) => r
+        case (r, CONST_EXP(NUMERAL(0))) => r
+        case (ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n)), r), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n + m)), r)
+        case (ARITHM_OP_EXP("+", r, CONST_EXP(NUMERAL(n))), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("+", r.simplify, CONST_EXP(NUMERAL(n + m)))
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n)), r)) => ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n + m)), r)
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("+", r, CONST_EXP(NUMERAL(n)))) => ARITHM_OP_EXP("+", r.simplify, CONST_EXP(NUMERAL(n + m)))
+        case (ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n)), r), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n + m)), r)
+        case (ARITHM_OP_EXP("-", r, CONST_EXP(NUMERAL(n))), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("-", r.simplify, CONST_EXP(NUMERAL(n - m)))
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n)), r)) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(m + n)), r)
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("-", r, CONST_EXP(NUMERAL(n)))) => ARITHM_OP_EXP("-", r.simplify, CONST_EXP(NUMERAL(n - m)))
         case _ => ARITHM_OP_EXP("+", newlhs, newrhs)
       }
       case "-" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a - b))
+        case (r, CONST_EXP(NUMERAL(0))) => r
+        case (ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n)), r), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n - m)), r)
+        case (ARITHM_OP_EXP("-", r, CONST_EXP(NUMERAL(n))), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("-", r, CONST_EXP(NUMERAL(n + m)))
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(n)), r)) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(m - n)), r)
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("-", r, CONST_EXP(NUMERAL(n)))) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(m + n)), r)
+        case (ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n)), r), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n - m)), r)
+        case (ARITHM_OP_EXP("+", r, CONST_EXP(NUMERAL(n))), CONST_EXP(NUMERAL(m))) => ARITHM_OP_EXP("+", r, CONST_EXP(NUMERAL(n - m)))
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("+", CONST_EXP(NUMERAL(n)), r)) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(m - n)), r)
+        case (CONST_EXP(NUMERAL(m)), ARITHM_OP_EXP("+", r, CONST_EXP(NUMERAL(n)))) => ARITHM_OP_EXP("-", CONST_EXP(NUMERAL(m - n)), r)
         case _ => ARITHM_OP_EXP("-", newlhs, newrhs)
       }
       case "*" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a * b))
+        case (CONST_EXP(NUMERAL(0)), r) => CONST_EXP(NUMERAL(0))
+        case (r, CONST_EXP(NUMERAL(0))) => CONST_EXP(NUMERAL(0))
+        case (CONST_EXP(NUMERAL(1)), r) => r.simplify
+        case (r, CONST_EXP(NUMERAL(1))) => r.simplify
         case _ => ARITHM_OP_EXP("*", newlhs, newrhs)
       }
       case "Div" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a / b))
+        case (CONST_EXP(NUMERAL(0)), r) => CONST_EXP(NUMERAL(0))
+        //case (r, CONST_EXP(NUMERAL(0))) => CONST_EXP(NUMERAL(0))
+        case (CONST_EXP(NUMERAL(1)), r) => CONST_EXP(NUMERAL(1))
+        case (r, CONST_EXP(NUMERAL(1))) => r.simplify
         case _ => ARITHM_OP_EXP("Div", newlhs, newrhs)
       }
       case "Mod" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a % b))
+        case (CONST_EXP(NUMERAL(0)), r) => CONST_EXP(NUMERAL(0))
+        //case (r, CONST_EXP(NUMERAL(0))) => CONST_EXP(NUMERAL(0))
+        case (r, CONST_EXP(NUMERAL(1))) => CONST_EXP(NUMERAL(0))
         case _ => ARITHM_OP_EXP("Mod", newlhs, newrhs)
       }
     }
