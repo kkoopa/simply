@@ -8,12 +8,16 @@ sealed trait AST extends Positional
 case class IDENTIFIER(name: String) extends AST
 case class NUMERAL(value: Int) extends AST
 
-sealed trait EXPRESSION extends AST
+sealed trait EXPRESSION extends AST {
+  def simplify : EXPRESSION
+}
 sealed trait FORMULA extends EXPRESSION {
   def evaluate: Boolean
+  override def simplify: FORMULA
 }
 sealed trait ARITHM_EXP extends EXPRESSION {
   def evaluate: Int
+  override def simplify: ARITHM_EXP
 }
 
 case class PROBLEM(ident: IDENTIFIER, data: List[DATA_EXP], domains: List[DOMAIN_EXP], variables: List[VARIABLE_EXP], constraints: List[SENTENCE]) extends AST
@@ -59,22 +63,44 @@ case class PREDICATE_RESTRICT(predicate: FORMULA) extends VAR_RESTRICT
 case class RANGE(lb: ARITHM_EXP, ub: ARITHM_EXP) extends AST
 
 case class CONST_FORMULA(value: Boolean) extends FORMULA {
-  override def evaluate = value
+  override def evaluate : Boolean = value
+  override def simplify : FORMULA = this
 }
 case class NOT_FORMULA(formula : FORMULA) extends FORMULA {
-  override def evaluate = !formula.evaluate
+  override def evaluate : Boolean = !formula.evaluate
+  override def simplify : FORMULA = formula.simplify match {
+    case CONST_FORMULA(b) => CONST_FORMULA(!b)
+    case NOT_FORMULA(f) => f
+    case r => NOT_FORMULA(r)
+  }
 }
 case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMULA {
-  override def evaluate = op match {
+  override def evaluate : Boolean = op match {
     case "And" => lhs.evaluate && rhs.evaluate
     case "Or" => lhs.evaluate || rhs.evaluate
     case "Xor" => lhs.evaluate ^ rhs.evaluate
     case "Iff" => !(lhs.evaluate ^ rhs.evaluate)
     case "Implies" => !lhs.evaluate || rhs.evaluate
   }
+  override def simplify : FORMULA = op match {
+    case "And" => (lhs.simplify, rhs.simplify) match {
+      case (CONST_FORMULA(false), _) => CONST_FORMULA(false)
+      case (_, CONST_FORMULA(false)) => CONST_FORMULA(false)
+      case (CONST_FORMULA(true), r) => r
+      case (r, CONST_FORMULA(true)) => r
+      case (a, b) => BOOL_OP_FORMULA("And", a, b)
+    }
+    case "Or" => (lhs.simplify, rhs.simplify) match {
+      case (CONST_FORMULA(false), r) => r
+      case (r, CONST_FORMULA(false)) => r
+      case (CONST_FORMULA(true), _) => CONST_FORMULA(true)
+      case (_, CONST_FORMULA(true)) => CONST_FORMULA(true)
+      case (a, b) => BOOL_OP_FORMULA("Or", a, b)
+    }
+  }
 }
 case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends FORMULA {
-  override def evaluate = op match {
+  override def evaluate : Boolean = op match {
     case "=" => lhs.evaluate == rhs.evaluate
     case "<>" => lhs.evaluate != rhs.evaluate
     case "<" => lhs.evaluate < rhs.evaluate
@@ -82,31 +108,96 @@ case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends 
     case "=<" => lhs.evaluate <= rhs.evaluate
     case ">=" => lhs.evaluate >= rhs.evaluate
   }
+  override def simplify : FORMULA = {
+    val newlhs = lhs.simplify
+    val newrhs = rhs.simplify
+    op match {
+      case "=" => if (newlhs == newrhs) CONST_FORMULA(true) else (newlhs, newrhs) match {
+        case (CONST_EXP(_), CONST_EXP(_)) => CONST_FORMULA(false)
+        case _ => REL_OP_FORMULA("=", newlhs, newrhs)
+      }
+      case "<>" => if (newlhs == newrhs) CONST_FORMULA(false) else (newlhs, newrhs) match {
+        case (CONST_EXP(_), CONST_EXP(_)) => CONST_FORMULA(true)
+        case _ => REL_OP_FORMULA("<>", newlhs, newrhs)
+      }
+    }
+  }
 }
 
 case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA {
-  override def evaluate = var_id match {
+  override def evaluate : Boolean = var_id match {
     case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s) != 0
+  }
+  override def simplify : FORMULA = var_id match {
+    case VAR_ID(IDENTIFIER(name), Nil) =>
+      var foo = Env.local.get(name)
+      if (foo.isEmpty) foo = Env.env.get(name)
+      if (foo.isEmpty) return this
+      CONST_FORMULA(foo.get != 0)
+    case VAR_ID(ident, list) => VAR_FORMULA(VAR_ID(ident, list.map(_.simplify)))
   }
 }
 
 case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends ARITHM_EXP {
-  override def evaluate = op match {
+  override def evaluate : Int = op match {
     case "+" => lhs.evaluate + rhs.evaluate
     case "-" => lhs.evaluate - rhs.evaluate
     case "*" => lhs.evaluate * rhs.evaluate
     case "Div" => lhs.evaluate / rhs.evaluate
     case "Mod" => lhs.evaluate % rhs.evaluate
   }
+  override def simplify : ARITHM_EXP = {
+    val newlhs = lhs.simplify
+    val newrhs = rhs.simplify
+    op match {
+      case "+" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a + b))
+        case _ => ARITHM_OP_EXP("+", newlhs, newrhs)
+      }
+      case "-" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a - b))
+        case _ => ARITHM_OP_EXP("-", newlhs, newrhs)
+      }
+      case "*" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a * b))
+        case _ => ARITHM_OP_EXP("*", newlhs, newrhs)
+      }
+      case "Div" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a / b))
+        case _ => ARITHM_OP_EXP("Div", newlhs, newrhs)
+      }
+      case "Mod" => (newlhs, newrhs) match {
+        case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a % b))
+        case _ => ARITHM_OP_EXP("Mod", newlhs, newrhs)
+      }
+    }
+  }
 }
 case class ABS_EXP(exp: ARITHM_EXP) extends ARITHM_EXP {
-  override def evaluate = math.abs(exp.evaluate)
+  override def evaluate : Int = math.abs(exp.evaluate)
+  override def simplify : ARITHM_EXP = {
+    val simpexp = exp.simplify
+    simpexp match {
+      case CONST_EXP(NUMERAL(n)) => CONST_EXP(NUMERAL(n))
+      case _ => ABS_EXP(simpexp)
+    }
+  }
 }
 case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP {
-  override def evaluate = value match { case NUMERAL(n) => n }
+  override def evaluate : Int = value match { case NUMERAL(n) => n }
+  override def simplify : ARITHM_EXP = this
 }
 case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP {
-  override def evaluate = var_id match {
+  override def evaluate : Int = var_id match {
     case VAR_ID(IDENTIFIER(s), Nil) => Env.local.getOrElse(s, Env.env(s))
+  }
+  override def simplify : ARITHM_EXP = var_id match {
+    case VAR_ID(IDENTIFIER(name), Nil) =>
+      var foo = Env.local.get(name)
+      if (foo.isEmpty) foo = Env.env.get(name)
+      if (foo.isEmpty) return this
+      CONST_EXP(NUMERAL(foo.get))
+    case VAR_ID(ident, list) => VAR_EXP(VAR_ID(ident, list.map(_.simplify))
+    )
   }
 }

@@ -206,7 +206,7 @@ object SimplyParserTest extends SimplyParser {
       case IF_THEN_ELSE_STATEMENT(IF_THEN_ELSE(predicate, ifs, elses)) => if (predicate.evaluate) ifs.map(visit).asInstanceOf[List[String]] else elses.map(visit).asInstanceOf[List[String]]
       case FORALL_STATEMENT(FORALL(IDENTIFIER(name), list, sentences)) =>
         visit(list).asInstanceOf[List[Int]].flatMap(x => { Env.local(name) = x; sentences.map(visit).asInstanceOf[List[List[String]]].flatten })
-      case PREDICATE_CONSTRAINT(predicate) => println("Predicate: " ++ predicate.toString); println("Locals: " ++ Env.local.toString); predicate.toString
+      case PREDICATE_CONSTRAINT(predicate) => predicate.simplify.toString
       //case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) =>
       //case ALLDIFFERENT_CONSTRAINT(list) => visit(list)
       //case SUM_CONSTRAINT(list, value) => visit(list)
