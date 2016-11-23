@@ -178,12 +178,31 @@ object SimplyParserTest extends SimplyParser {
       case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = res
       case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = if (res) 1 else 0
       case DOMAIN_EXP(IDENTIFIER(name), list) => Env.dom(name) = visit(list).asInstanceOf[List[Int]]
-      case LIST_COMPREHENSION(exp, restrictions) => restrictions.map(visit).flatMap {
-        case (name:String, values:List[Int]) => values.map { x => Env.local(name) = x; exp.evaluate }
-        case (predicate:FORMULA) => List(1)
-      }
+      case LIST_COMPREHENSION(exp, restrictions) =>
+        val res = restrictions.map(visit)
+        println("----------")
+        println(res)
+        println("----------")
+        val (filters:List[FORMULA], generators:List[(String, List[Int])]) = res partition { case p:FORMULA => true; case _ => false }
+        println(generators)
+        println(filters)
+        val f = (name: String, vals: List[Int]) => vals.foreach(x => println(name ++ " = " ++ x.toString))
+        generators.foreach(x => f(x._1, x._2))
+
+        /*
+        val weird = (filters.forall(_.evaluate) /: generators) {
+          case ((name, l), p) =>
+            Env.local(name) = l
+            p
+        }
+        println(weird)*/
+        //filters.forall(_.evaluate)
+        restrictions.map(visit).flatMap {
+          case (name:String, values:List[Int]) => values.map { x => Env.local(name) = x; exp.evaluate }
+          case (predicate:FORMULA) => List(1)
+        }
       case LIST_ENUMERATION(list) => list.flatMap(visitList)
-      case MEMBER_RESTRICT(IDENTIFIER(name), list) => (name, visit(list).asInstanceOf[List[Int]])
+      case MEMBER_RESTRICT(IDENTIFIER(name), list) => (name, visit(list))
       case PREDICATE_RESTRICT(predicate) => predicate
       case LIST_ELEMENT_EXP(ex) => List(ex.evaluate)
       case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).toList
