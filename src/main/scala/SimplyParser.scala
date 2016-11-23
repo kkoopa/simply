@@ -181,13 +181,13 @@ object SimplyParserTest extends SimplyParser {
     printAST("target/scala-2.12/classes/jobshop_58.y")
     val tree = parseAll(simply_problem, new FileReader("target/scala-2.12/classes/SchursLemma_10_3.y")).get
     def visit(node:AST) : Any = node match {
-      case PROBLEM(IDENTIFIER(name), data, domains, variables, constraints) => data.map(visit); domains.map(visit); variables.map(visit); constraints.map(visit)
+      case PROBLEM(IDENTIFIER(name), data, domains, variables, constraints) => data.map(visit); domains.map(visit); variables.map(visit); constraints.map(visit).asInstanceOf[List[List[String]]].flatten
       case DATA_EXP(IDENTIFIER(name), exp:ARITHM_EXP) => val res = exp.evaluate; Env.env(name) = res
       case DATA_EXP(IDENTIFIER(name), exp:FORMULA) => val res = exp.evaluate; Env.env(name) = if (res) 1 else 0
       case DOMAIN_EXP(IDENTIFIER(name), list) => Env.dom(name) = visit(list).asInstanceOf[List[Int]]
       case LIST_COMPREHENSION(exp, restrictions) =>
         val res = restrictions.map(visit)
-        val (filters:List[FORMULA], generators:List[(String, List[Int])]) = res partition { case p:FORMULA => true; case _ => false }
+        val (filters:List[FORMULA], generators:List[(String, List[Int])]) = res partition { case _:FORMULA => true; case _ => false }
         val (names:List[String], domains:List[List[Int]]) = generators.unzip
         cartesianProduct(domains) map (names zip _) flatMap (x => { x.foreach(y => Env.local(y._1) = y._2); if (filters.forall(_.evaluate)) List(exp.evaluate) else Nil })
       case LIST_ENUMERATION(list) => list.flatMap(visitList)
@@ -200,18 +200,17 @@ object SimplyParserTest extends SimplyParser {
         case VAR_ID(IDENTIFIER(name), explist) => Env.xev(name) = (explist.map(_.evaluate), if (domain == "__BOOL__") List(0, 1) else Env.dom(domain))
       }
       case VAR_ID(IDENTIFIER(name), Nil) => Env.env(name)
-      case VAR_ID(IDENTIFIER(name), list) =>
+      //case VAR_ID(IDENTIFIER(name), list) =>
       case SENTENCE_STATEMENT(statement) => visit(statement)
       case SENTENCE_CONSTRAINT(constraint) => visit(constraint)
-      case IF_THEN_ELSE_STATEMENT(statement) => visit(statement)
-      case FORALL_STATEMENT(statement) => visit(statement)
-      case IF_THEN_ELSE(predicate, ifs, elses) => if (predicate.evaluate) ifs.map(visit) else elses.map(visit)
-      case FORALL(IDENTIFIER(name), list, sentences) => visit(list) /* and visit sentences */
-      case PREDICATE_CONSTRAINT(predicate) =>
-      case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) =>
-      case ALLDIFFERENT_CONSTRAINT(list) => visit(list)
-      case SUM_CONSTRAINT(list, value) => visit(list)
-      case COUNT_CONSTRAINT(list, value, count) => visit(list)
+      case IF_THEN_ELSE_STATEMENT(IF_THEN_ELSE(predicate, ifs, elses)) => if (predicate.evaluate) ifs.map(visit).asInstanceOf[List[String]] else elses.map(visit).asInstanceOf[List[String]]
+      case FORALL_STATEMENT(FORALL(IDENTIFIER(name), list, sentences)) =>
+        visit(list).asInstanceOf[List[Int]].flatMap(x => { Env.local(name) = x; sentences.map(visit).asInstanceOf[List[List[String]]].flatten })
+      case PREDICATE_CONSTRAINT(predicate) => println("Predicate: " ++ predicate.toString); println("Locals: " ++ Env.local.toString); predicate.toString
+      //case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) =>
+      //case ALLDIFFERENT_CONSTRAINT(list) => visit(list)
+      //case SUM_CONSTRAINT(list, value) => visit(list)
+      //case COUNT_CONSTRAINT(list, value, count) => visit(list)
     }
 
     def visitList(node:LIST_ELEMENT) : List[Int] = node match {
