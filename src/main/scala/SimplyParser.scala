@@ -9,8 +9,10 @@ import Printer.AnyTreeString
 
 import scala.collection.mutable
 
+import scala.util.matching.Regex
+
 class SimplyParser extends RegexParsers {
-  override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
+  override val whiteSpace : Regex = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
   def simply_problem: Parser[PROBLEM] = "Problem" ~> ":" ~> id ~ data ~ domains ~ variables ~ constraints ^^ { case ident ~ da ~ dom ~ va ~ cons => PROBLEM(ident, da, dom, va, cons) }
 
@@ -158,13 +160,18 @@ class SimplyParser extends RegexParsers {
 }
 
 object Env {
-  val env = mutable.Map[String, Int]()
-  val dom = mutable.Map[String, List[Int]]()
-  val xev = mutable.Map[String, (List[Int], List[Int])]()
-  val local = mutable.Map[String, Int]()
+  val env : mutable.Map[String, Int] = mutable.Map[String, Int]()
+  val dom : mutable.Map[String, List[Int]] = mutable.Map[String, List[Int]]()
+  val xev : mutable.Map[String, (List[Int], List[Int])] = mutable.Map[String, (List[Int], List[Int])]()
+  val local : mutable.Map[String, Int] = mutable.Map[String, Int]()
 }
 
 object SimplyParserTest extends SimplyParser {
+  def cartesianProduct[T](xss: List[List[T]]): List[List[T]] = xss match {
+    case Nil => List(Nil)
+    case h :: t => for (xh <- h; xt <- cartesianProduct(t)) yield xh :: xt
+  }
+
   def printAST(path: String): Unit = println(parseAll(simply_problem, new FileReader(path)).get.treeString)
 
   def main(args: Array[String]): Unit = {
@@ -180,27 +187,9 @@ object SimplyParserTest extends SimplyParser {
       case DOMAIN_EXP(IDENTIFIER(name), list) => Env.dom(name) = visit(list).asInstanceOf[List[Int]]
       case LIST_COMPREHENSION(exp, restrictions) =>
         val res = restrictions.map(visit)
-        println("----------")
-        println(res)
-        println("----------")
         val (filters:List[FORMULA], generators:List[(String, List[Int])]) = res partition { case p:FORMULA => true; case _ => false }
-        println(generators)
-        println(filters)
-        val f = (name: String, vals: List[Int]) => vals.foreach(x => println(name ++ " = " ++ x.toString))
-        generators.foreach(x => f(x._1, x._2))
-
-        /*
-        val weird = (filters.forall(_.evaluate) /: generators) {
-          case ((name, l), p) =>
-            Env.local(name) = l
-            p
-        }
-        println(weird)*/
-        //filters.forall(_.evaluate)
-        restrictions.map(visit).flatMap {
-          case (name:String, values:List[Int]) => values.map { x => Env.local(name) = x; exp.evaluate }
-          case (predicate:FORMULA) => List(1)
-        }
+        val (names:List[String], domains:List[List[Int]]) = generators.unzip
+        cartesianProduct(domains) map (names zip _) flatMap (x => { x.foreach(y => Env.local(y._1) = y._2); if (filters.forall(_.evaluate)) List(exp.evaluate) else Nil })
       case LIST_ENUMERATION(list) => list.flatMap(visitList)
       case MEMBER_RESTRICT(IDENTIFIER(name), list) => (name, visit(list))
       case PREDICATE_RESTRICT(predicate) => predicate
