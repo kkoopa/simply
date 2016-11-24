@@ -2,7 +2,7 @@ Problem: jobshop_58
     Data n_machines := 5; n_jobs := 8;
         n_tasks_per_job := 5; max_duration := 58;
     Domains Dom machines=[0..n_machines-1];
-            Dom duration=[0..max_duation];
+            Dom duration=[0..max_duration];
             Dom task_duration=[1..9];
     Variables
         IntVar job_task_start[n_jobs,n_tasks_per_job]::duration;

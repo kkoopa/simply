@@ -11,7 +11,7 @@ Variables
     IntVar course_load[n_courses]::load;
     IntVar acourses[n_courses]::periods;
     IntVar mload[n_courses,n_periods]::load_ext;
-    IntVar load_per_period[n_periods]::adload;
+    IntVar load_per_period[n_periods]::addload;
     IntVar course_per_period[n_periods]::addcourses;
 Constraints
 // courses load
