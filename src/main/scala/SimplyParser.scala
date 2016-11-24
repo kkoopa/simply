@@ -101,7 +101,7 @@ class SimplyParser extends RegexParsers {
 
   def factor: Parser[ARITHM_EXP] = (
     numeral ^^ { CONST_EXP }
-  | "Abs" ~> arithm_exp ^^ { ABS_EXP }
+  | "Abs" ~> "(" ~> arithm_exp <~ ")" ^^ { ABS_EXP }
   | var_id ^^ { VAR_EXP }
   | "(" ~> arithm_exp <~ ")"
   )
