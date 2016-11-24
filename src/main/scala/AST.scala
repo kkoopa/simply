@@ -93,6 +93,10 @@ case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMU
           case (_, CONST_FORMULA(false)) => CONST_FORMULA(false)
           case (CONST_FORMULA(true), r) => r
           case (r, CONST_FORMULA(true)) => r
+          case (p1, BOOL_OP_FORMULA("Or", p2, q)) => if (p1 == p2) p1 else BOOL_OP_FORMULA("And", newlhs, newrhs)
+          case (p1, BOOL_OP_FORMULA("Or", q, p2)) => if (p1 == p2) p1 else BOOL_OP_FORMULA("And", newlhs, newrhs)
+          case (BOOL_OP_FORMULA("Or", p2, q), p1) => if (p1 == p2) p1 else BOOL_OP_FORMULA("And", newlhs, newrhs)
+          case (BOOL_OP_FORMULA("Or", q, p2), p1) => if (p1 == p2) p1 else BOOL_OP_FORMULA("And", newlhs, newrhs)
           case (a, b) => BOOL_OP_FORMULA("And", a, b)
         }
       case "Or" =>
@@ -100,6 +104,10 @@ case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMU
         else (newlhs, newrhs) match {
           case (CONST_FORMULA(false), r) => r
           case (r, CONST_FORMULA(false)) => r
+          case (p1, BOOL_OP_FORMULA("And", p2, q)) => if (p1 == p2) p1 else BOOL_OP_FORMULA("Or", newlhs, newrhs)
+          case (p1, BOOL_OP_FORMULA("And", q, p2)) => if (p1 == p2) p1 else BOOL_OP_FORMULA("Or", newlhs, newrhs)
+          case (BOOL_OP_FORMULA("And", p2, q), p1) => if (p1 == p2) p1 else BOOL_OP_FORMULA("Or", newlhs, newrhs)
+          case (BOOL_OP_FORMULA("And", q, p2), p1) => if (p1 == p2) p1 else BOOL_OP_FORMULA("Or", newlhs, newrhs)
           case (CONST_FORMULA(true), _) => CONST_FORMULA(true)
           case (_, CONST_FORMULA(true)) => CONST_FORMULA(true)
           case (a, b) => BOOL_OP_FORMULA("Or", a, b)

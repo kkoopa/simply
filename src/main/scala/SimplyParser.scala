@@ -255,6 +255,6 @@ object SimplyParserTest extends SimplyParser {
     val combo = consts.map{ case PREDICATE_CONSTRAINT(p) => p }.reduce(BOOL_OP_FORMULA("And", _, _))
     println(Env.xev)
     println(consts.map(pretty) mkString "\n")
-    println(pretty(PREDICATE_CONSTRAINT(combo.simplify)))
+    println(pretty(PREDICATE_CONSTRAINT(combo.simplify.simplify)))
   }
 }
