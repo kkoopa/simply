@@ -82,24 +82,32 @@ case class BOOL_OP_FORMULA(op: String, lhs: FORMULA, rhs: FORMULA) extends FORMU
     case "Iff" => !(lhs.evaluate ^ rhs.evaluate)
     case "Implies" => !lhs.evaluate || rhs.evaluate
   }
-  override def simplify : FORMULA = op match {
-    case "And" => (lhs.simplify, rhs.simplify) match {
-      case (CONST_FORMULA(false), _) => CONST_FORMULA(false)
-      case (_, CONST_FORMULA(false)) => CONST_FORMULA(false)
-      case (CONST_FORMULA(true), r) => r
-      case (r, CONST_FORMULA(true)) => r
-      case (a, b) => BOOL_OP_FORMULA("And", a, b)
+  override def simplify : FORMULA = {
+    val newlhs = lhs.simplify
+    val newrhs = rhs.simplify
+    op match {
+      case "And" =>
+        if (newlhs == newrhs) newlhs
+        else (newlhs, newrhs) match {
+          case (CONST_FORMULA(false), _) => CONST_FORMULA(false)
+          case (_, CONST_FORMULA(false)) => CONST_FORMULA(false)
+          case (CONST_FORMULA(true), r) => r
+          case (r, CONST_FORMULA(true)) => r
+          case (a, b) => BOOL_OP_FORMULA("And", a, b)
+        }
+      case "Or" =>
+        if (newlhs == newrhs) newlhs
+        else (newlhs, newrhs) match {
+          case (CONST_FORMULA(false), r) => r
+          case (r, CONST_FORMULA(false)) => r
+          case (CONST_FORMULA(true), _) => CONST_FORMULA(true)
+          case (_, CONST_FORMULA(true)) => CONST_FORMULA(true)
+          case (a, b) => BOOL_OP_FORMULA("Or", a, b)
+        }
+      case "Xor" => BOOL_OP_FORMULA("Or", BOOL_OP_FORMULA("And", lhs, NOT_FORMULA(rhs)), BOOL_OP_FORMULA("And", NOT_FORMULA(lhs), rhs)).simplify
+      case "Iff" => NOT_FORMULA(BOOL_OP_FORMULA("Xor", lhs, rhs)).simplify
+      case "Implies" => BOOL_OP_FORMULA("Or", NOT_FORMULA(lhs), rhs).simplify
     }
-    case "Or" => (lhs.simplify, rhs.simplify) match {
-      case (CONST_FORMULA(false), r) => r
-      case (r, CONST_FORMULA(false)) => r
-      case (CONST_FORMULA(true), _) => CONST_FORMULA(true)
-      case (_, CONST_FORMULA(true)) => CONST_FORMULA(true)
-      case (a, b) => BOOL_OP_FORMULA("Or", a, b)
-    }
-    case "Xor" => BOOL_OP_FORMULA("Or", BOOL_OP_FORMULA("And", lhs, NOT_FORMULA(rhs)), BOOL_OP_FORMULA("And", NOT_FORMULA(lhs), rhs)).simplify
-    case "Iff" => NOT_FORMULA(BOOL_OP_FORMULA("Xor", lhs, rhs)).simplify
-    case "Implies" => BOOL_OP_FORMULA("Or", NOT_FORMULA(lhs), rhs).simplify
   }
 }
 case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends FORMULA {
