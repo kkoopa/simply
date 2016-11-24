@@ -166,6 +166,7 @@ case class REL_OP_FORMULA(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends 
 case class VAR_FORMULA(var_id: VAR_ID) extends FORMULA {
   override def evaluate : Boolean = var_id match {
     case VAR_ID(IDENTIFIER(s), Nil) => Env.env(s) != 0
+    case _ => throw new Error("Bad code!")
   }
   override def simplify : FORMULA = var_id match {
     case VAR_ID(IDENTIFIER(name), Nil) =>
@@ -227,7 +228,7 @@ case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends A
       case "Div" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a / b))
         case (CONST_EXP(NUMERAL(0)), r) => CONST_EXP(NUMERAL(0))
-        //case (r, CONST_EXP(NUMERAL(0))) => CONST_EXP(NUMERAL(0))
+        case (r, CONST_EXP(NUMERAL(0))) => throw new Error("Bad code!")
         case (CONST_EXP(NUMERAL(1)), r) => CONST_EXP(NUMERAL(1))
         case (r, CONST_EXP(NUMERAL(1))) => r.simplify
         case _ => ARITHM_OP_EXP("Div", newlhs, newrhs)
@@ -235,7 +236,7 @@ case class ARITHM_OP_EXP(op: String, lhs: ARITHM_EXP, rhs: ARITHM_EXP) extends A
       case "Mod" => (newlhs, newrhs) match {
         case (CONST_EXP(NUMERAL(a)), CONST_EXP(NUMERAL(b))) => CONST_EXP(NUMERAL(a % b))
         case (CONST_EXP(NUMERAL(0)), r) => CONST_EXP(NUMERAL(0))
-        //case (r, CONST_EXP(NUMERAL(0))) => CONST_EXP(NUMERAL(0))
+        case (r, CONST_EXP(NUMERAL(0))) => throw new Error("Bad code!")
         case (r, CONST_EXP(NUMERAL(1))) => CONST_EXP(NUMERAL(0))
         case _ => ARITHM_OP_EXP("Mod", newlhs, newrhs)
       }
@@ -259,6 +260,7 @@ case class CONST_EXP(value: NUMERAL) extends ARITHM_EXP {
 case class VAR_EXP(var_id: VAR_ID) extends ARITHM_EXP {
   override def evaluate : Int = var_id match {
     case VAR_ID(IDENTIFIER(s), Nil) => Env.local.getOrElse(s, Env.env(s))
+    case _ => throw new Error("Bad code!")
   }
   override def simplify : ARITHM_EXP = var_id match {
     case VAR_ID(IDENTIFIER(name), Nil) =>

@@ -47,4 +47,28 @@ object Printer {
         a.toString
     }
   }
+
+  def pretty(node:AST) : String = node match {
+    case PREDICATE_CONSTRAINT(predicate) => pretty(predicate)
+    case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) => "If (" ++ pretty(predicate) ++ ") { " ++ (ifs map pretty).mkString(", ") ++ " } else { " ++ (elses map pretty).mkString(", ") ++ " }"
+    case ALLDIFFERENT_CONSTRAINT(list) => "Alldifferent (" ++ pretty(list) ++ ")"
+    case SUM_CONSTRAINT(list, value) => "Sum (" ++ pretty(list) ++ ", " ++ pretty(value) ++ ")"
+    case COUNT_CONSTRAINT(list, value, count) => "Count (" ++ pretty(list) ++ ", " ++ pretty(value) ++ ", " ++ pretty(count) ++ ")"
+    case CONST_FORMULA(b) => b.toString
+    case NOT_FORMULA(f) => f match {
+      case BOOL_OP_FORMULA(op, lhs, rhs) => "!(" ++ pretty(BOOL_OP_FORMULA(op, lhs, rhs)) ++ ")"
+      case REL_OP_FORMULA(op, lhs, rhs) => "!(" ++ pretty(REL_OP_FORMULA(op, lhs, rhs)) ++ ")"
+      case _ => "!" ++ pretty(f)
+    }
+    case BOOL_OP_FORMULA(op, lhs, rhs) => pretty(lhs) ++ " " ++ op ++ " " ++ pretty(rhs)
+    case REL_OP_FORMULA(op, lhs, rhs) => pretty(lhs) ++ " " ++ op ++ " " ++ pretty(rhs)
+    case VAR_FORMULA(VAR_ID(IDENTIFIER(name), offsets)) => name ++ offsets.map("[" ++ _.evaluate.toString ++ "]").reduce(_++_)
+    case CONST_EXP(NUMERAL(n)) => n.toString
+    case ABS_EXP(exp) => "Abs (" ++ pretty(exp) ++ ")"
+    case ARITHM_OP_EXP(op, lhs, rhs) => pretty(lhs) ++ " " ++ op ++ " " ++ pretty(rhs)
+    case VAR_EXP(VAR_ID(IDENTIFIER(name), offsets)) => name ++ offsets.map("[" ++ _.evaluate.toString ++ "]").reduce(_++_)
+    case LIST_ELEMENT_EXP(ex) => pretty(ex)
+    case LIST_ENUMERATION(l) => "[" ++ l.map(pretty).mkString(", ") ++ "]"
+    case _ => throw new Error("Bad code!")
+  }
 }
