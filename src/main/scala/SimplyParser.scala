@@ -210,6 +210,25 @@ object SimplyParserTest extends SimplyParser {
     case LIST_ENUMERATION(alist) => alist.flatMap(visitListElement)
   }
 
+  def visitListElement(node:LIST_ELEMENT) : List[Int] = node match {
+    case LIST_ELEMENT_EXP(exp) => List(exp.evaluate)
+    case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).toList
+  }
+
+  def visitListLazy(list:LIST) : List[ARITHM_EXP] = list match {
+    case LIST_COMPREHENSION(exp, restrictions) =>
+      val (a, b) = restrictions partition { case MEMBER_RESTRICT(_, _) => true; case PREDICATE_RESTRICT(_) => false }
+      val filters = b.asInstanceOf[List[PREDICATE_RESTRICT]] map { case PREDICATE_RESTRICT(predicate) => predicate }
+      val (names, domains) = (a.asInstanceOf[List[MEMBER_RESTRICT]] map { case MEMBER_RESTRICT(IDENTIFIER(name), alist) => (name, visitList(alist)) }).unzip
+      cartesianProduct(domains) map (names zip _) flatMap (x => { x.foreach(y => Env.local(y._1) = y._2); if (filters.forall(_.evaluate)) List(exp.simplify) else Nil })
+    case LIST_ENUMERATION(alist) => alist.flatMap(visitListElementLazy)
+  }
+
+  def visitListElementLazy(node:LIST_ELEMENT) : List[ARITHM_EXP] = node match {
+    case LIST_ELEMENT_EXP(exp) => List(exp.simplify)
+    case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).map(x => CONST_EXP(NUMERAL(x))).toList
+  }
+
   def visitSentence(sentence:SENTENCE) : List[CONSTRAINT] = sentence match {
     case SENTENCE_STATEMENT(statement) => visitStatement(statement)
     case SENTENCE_CONSTRAINT(constraint) => List(visitConstraint(constraint))
@@ -222,15 +241,28 @@ object SimplyParserTest extends SimplyParser {
 
   def visitConstraint(constraint:CONSTRAINT) : CONSTRAINT = constraint match {
     case PREDICATE_CONSTRAINT(predicate) => PREDICATE_CONSTRAINT(predicate.simplify)
-    case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) => IF_THEN_ELSE_CONSTRAINT(predicate.simplify, ifs, elses)
-    case ALLDIFFERENT_CONSTRAINT(list) => ALLDIFFERENT_CONSTRAINT(list)
-    case SUM_CONSTRAINT(list, value) => SUM_CONSTRAINT(list, value.simplify)
-    case COUNT_CONSTRAINT(list, value, count) => COUNT_CONSTRAINT(list, value.simplify, count.simplify)
-  }
-
-  def visitListElement(node:LIST_ELEMENT) : List[Int] = node match {
-    case LIST_ELEMENT_EXP(exp) => List(exp.evaluate)
-    case LIST_ELEMENT_RANGE(RANGE(lb, ub)) => Range.inclusive(lb.evaluate, ub.evaluate).toList
+    case IF_THEN_ELSE_CONSTRAINT(predicate, ifs, elses) =>
+      val if_constraints = ifs.flatMap(visitSentence).asInstanceOf[List[PREDICATE_CONSTRAINT]]
+      val if_predicates = if_constraints.map{ case PREDICATE_CONSTRAINT(p) => p }.reduce(BOOL_OP_FORMULA("And", _, _))
+      val else_constraints = elses.flatMap(visitSentence).asInstanceOf[List[PREDICATE_CONSTRAINT]]
+      val else_predicates = else_constraints.map{ case PREDICATE_CONSTRAINT(p) => p }.reduce(BOOL_OP_FORMULA("And", _, _))
+      PREDICATE_CONSTRAINT(BOOL_OP_FORMULA("Or", BOOL_OP_FORMULA("And", predicate, if_predicates), BOOL_OP_FORMULA("And", NOT_FORMULA(predicate), else_predicates)).simplify)
+    case ALLDIFFERENT_CONSTRAINT(list) =>
+      val foo:List[FORMULA] = visitListLazy(list).combinations(2).map { case Seq(x, y) => REL_OP_FORMULA("<>", x, y) }.toList
+      PREDICATE_CONSTRAINT(foo.reduce(BOOL_OP_FORMULA("And", _, _)))
+    case SUM_CONSTRAINT(list, value) => PREDICATE_CONSTRAINT(REL_OP_FORMULA("=", visitListLazy(list).reduce(ARITHM_OP_EXP("+", _, _)), value).simplify)
+    case COUNT_CONSTRAINT(list, value, count) =>
+      COUNT_CONSTRAINT(LIST_ENUMERATION(visitListLazy(list).map(LIST_ELEMENT_EXP)), value.simplify, count.simplify)
+      /*
+      val relations = visitListLazy(list).map(REL_OP_FORMULA("=", _, value))
+      def gadget(x:List[REL_OP_FORMULA], c:Int) : FORMULA = (x, c) match {
+        case (Nil, 0) => CONST_FORMULA(true)
+        case (Nil, _) => CONST_FORMULA(false)
+        case (h :: t, 0) => BOOL_OP_FORMULA("And", gadget(t, 0), NOT_FORMULA(h))
+        case (h :: t, n) => BOOL_OP_FORMULA("Or", BOOL_OP_FORMULA("And", gadget(t, n - 1), h), BOOL_OP_FORMULA("And", gadget(t, n), NOT_FORMULA(h)))
+      }
+      PREDICATE_CONSTRAINT(gadget(relations, count.evaluate).simplify)
+      */
   }
 
   def pretty(node:AST) : String = node match {
@@ -252,6 +284,8 @@ object SimplyParserTest extends SimplyParser {
     case ABS_EXP(exp) => "Abs (" ++ pretty(exp) ++ ")"
     case ARITHM_OP_EXP(op, lhs, rhs) => pretty(lhs) ++ " " ++ op ++ " " ++ pretty(rhs)
     case VAR_EXP(VAR_ID(IDENTIFIER(name), offsets)) => name ++ offsets.map("[" ++ _.evaluate.toString ++ "]").reduce(_++_)
+    case LIST_ELEMENT_EXP(ex) => pretty(ex)
+    case LIST_ENUMERATION(l) => "[" ++ l.map(pretty).mkString(", ") ++ "]"
     case _ => "Unsupported"
   }
 
