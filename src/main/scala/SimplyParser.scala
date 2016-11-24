@@ -16,18 +16,18 @@ class SimplyParser extends RegexParsers {
 
   def simply_problem: Parser[PROBLEM] = "Problem" ~> ":" ~> id ~ data ~ domains ~ variables ~ constraints ^^ { case ident ~ da ~ dom ~ va ~ cons => PROBLEM(ident, da, dom, va, cons) }
 
-  def data: Parser[List[DATA_EXP]] = "Data" ~> rep(data_exp)
+  def data: Parser[List[DATA_EXP]] = "Data" ~> data_exp.*
 
   def data_exp: Parser[DATA_EXP] = (
     id ~ (":=" ~> arithm_exp) <~ ";" ^^ { case ident ~ exp => DATA_EXP(ident, exp) }
   | id ~ (":=" ~> formula) <~ ";" ^^ { case ident ~ predicate => DATA_EXP(ident, predicate)}
   )
 
-  def domains: Parser[List[DOMAIN_EXP]] = "Domains" ~> rep(domain_exp)
+  def domains: Parser[List[DOMAIN_EXP]] = "Domains" ~> domain_exp.*
 
   def domain_exp: Parser[DOMAIN_EXP] = "Dom" ~> id ~ ("=" ~> list) <~ ";" ^^ { case ident ~ l => DOMAIN_EXP(ident, l) }
 
-  def variables: Parser[List[VARIABLE_EXP]] = "Variables" ~> rep(variable_exp)
+  def variables: Parser[List[VARIABLE_EXP]] = "Variables" ~> variable_exp.*
 
   def variable_exp: Parser[VARIABLE_EXP] = (
     "IntVar" ~> rep1sep(var_id, ",") ~ ("::" ~> id) <~ ";" ^^ { case vars ~ ident => VARIABLE_EXP(vars, ident) }
@@ -39,7 +39,7 @@ class SimplyParser extends RegexParsers {
   | id ^^ { VAR_ID(_) }
   )
 
-  def constraints: Parser[List[SENTENCE]] = "Constraints" ~> rep1(sentence)
+  def constraints: Parser[List[SENTENCE]] = "Constraints" ~> sentence.+
 
   def sentence: Parser[SENTENCE] = (
     statement ^^ { SENTENCE_STATEMENT }
@@ -52,15 +52,15 @@ class SimplyParser extends RegexParsers {
   )
 
   def if_then_else: Parser[IF_THEN_ELSE] = (
-    "If" ~> "(" ~> formula ~ (")" ~> "Then" ~> "{" ~> rep1(sentence)) <~ "}" ^^ { case f ~ ifs => IF_THEN_ELSE(f, ifs) }
-  | "If" ~> "(" ~> formula ~ (")" ~> "Then" ~> "{" ~> rep1(sentence)) ~ ("}" ~> "Else" ~> "{" ~> rep1(sentence)) <~ "}" ^^ { case f ~ ifs ~ elses => IF_THEN_ELSE(f, ifs, elses) }
+    "If" ~> "(" ~> formula ~ (")" ~> "Then" ~> "{" ~> sentence.+) <~ "}" ^^ { case f ~ ifs => IF_THEN_ELSE(f, ifs) }
+  | "If" ~> "(" ~> formula ~ (")" ~> "Then" ~> "{" ~> sentence.+) ~ ("}" ~> "Else" ~> "{" ~> sentence.+) <~ "}" ^^ { case f ~ ifs ~ elses => IF_THEN_ELSE(f, ifs, elses) }
   )
 
-  def forall: Parser[FORALL] = "Forall" ~> "(" ~> id ~ ("in" ~> list) ~ (")" ~> "{" ~> rep1(sentence)) <~ "}" ^^ { case ident ~ l ~ sentences => FORALL(ident, l, sentences) }
+  def forall: Parser[FORALL] = "Forall" ~> "(" ~> id ~ ("in" ~> list) ~ (")" ~> "{" ~> sentence.+) <~ "}" ^^ { case ident ~ l ~ sentences => FORALL(ident, l, sentences) }
 
   def constraint: Parser[CONSTRAINT] = (
     global_constraint
-  | "If_Then_Else" ~> "(" ~> formula ~ (")" ~> "{" ~> rep1(sentence)) ~ ("}" ~> "{" ~> rep1(sentence)) <~ "}" ^^ { case f ~ ifs ~ elses => IF_THEN_ELSE_CONSTRAINT(f, ifs, elses) }
+  | "If_Then_Else" ~> "(" ~> formula ~ (")" ~> "{" ~> sentence.+) ~ ("}" ~> "{" ~> sentence.+) <~ "}" ^^ { case f ~ ifs ~ elses => IF_THEN_ELSE_CONSTRAINT(f, ifs, elses) }
   | formula ^^ { PREDICATE_CONSTRAINT }
   )
 
