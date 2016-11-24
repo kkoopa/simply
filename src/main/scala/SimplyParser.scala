@@ -274,8 +274,11 @@ object SimplyParserTest extends SimplyParser {
     printAST("target/scala-2.12/classes/jobshop_58.y")
     */
     print(compile("target/scala-2.12/classes/SchursLemma_10_3.y"))
+    println("--------------------------------------------------------------------------------")
     print(compile("target/scala-2.12/classes/queens_8.y"))
-    //print(compile("target/scala-2.12/classes/bacp_12_6.y"))
-    //print(compile("target/scala-2.12/classes/jobshop_58.y"))
+    println("--------------------------------------------------------------------------------")
+    print(compile("target/scala-2.12/classes/bacp_12_6.y"))
+    println("--------------------------------------------------------------------------------")
+    print(compile("target/scala-2.12/classes/jobshop_58.y"))
   }
 }
