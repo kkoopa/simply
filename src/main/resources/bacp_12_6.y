@@ -23,7 +23,7 @@ Constraints
     // ...
 
     Forall(t in [1..n_periods]){
-        Count([acourses[j] | k in [1..n_courses]], t, course_per_period[t]);
+        Count([acourses[j] | j in [1..n_courses]], t, course_per_period[t]);
         Forall(c in [1..n_courses]) {
             If_Then_Else( acourses[c] = t )
                 { mload[c,t] = course_load[c]; }
