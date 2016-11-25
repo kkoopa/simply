@@ -71,6 +71,14 @@ case class NOT_FORMULA(formula : FORMULA) extends FORMULA {
   override def simplify : FORMULA = formula.simplify match {
     case CONST_FORMULA(b) => CONST_FORMULA(!b)
     case NOT_FORMULA(f) => f
+    case REL_OP_FORMULA(op, lhs, rhs) => op match {
+      case "=" => REL_OP_FORMULA("<>", lhs.simplify, rhs.simplify)
+      case "<>" => REL_OP_FORMULA("=", lhs.simplify, rhs.simplify)
+      case "<" => REL_OP_FORMULA(">=", lhs.simplify, rhs.simplify)
+      case "=<" => REL_OP_FORMULA(">", lhs.simplify, rhs.simplify)
+      case ">" => REL_OP_FORMULA("=<", lhs.simplify, rhs.simplify)
+      case ">=" => REL_OP_FORMULA("<", lhs.simplify, rhs.simplify)
+    }
     case r => NOT_FORMULA(r)
   }
 }
